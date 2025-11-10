@@ -7,7 +7,7 @@
 ## Connecting to a Hosted Server
 1. Open client.py in a text editor.
 2. Set the server URL to the public URL of your hosted app:
-`self.server_url = "https://your-app-name.onrender.com"`
+`self.server_url = "https://poker-server-yv2b.onrender.com"`
 3. Save the file.
 4. Run the client: 
 `python client.py`
