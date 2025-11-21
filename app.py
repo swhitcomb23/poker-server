@@ -5,6 +5,7 @@ Sam Whitcomb, Jonah Harris, Owen Davis, Jake Pappa's
 
 
 import eventlet
+import os
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 
@@ -326,4 +327,8 @@ def handle_river_request(_):
 
 if __name__ == "__main__":
     print("Starting poker server...")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    socketio.run(app, 
+                 host="0.0.0.0", 
+                 port=int(os.environ.get("PORT", 5000)), 
+                 debug=True, 
+                 allow_unsafe_werkzeug=True)
