@@ -3,10 +3,11 @@ CS 3050 Poker Game - game.py
 Sam Whitcomb, Jonah Harris, Owen Davis, Jake Pappas
 """
 
-
 import deck
 import Player
 import Pot
+import rankings
+
 
 class PokerGame:
 
@@ -25,8 +26,9 @@ class PokerGame:
         self.current_bet = 0
         self.street_contributions = {}
         self.minimum_raise = 0
+        self.maximum_bet = 990
         self.street = "preflop"  # preflop, flop, turn, river, showdown
-        self.last_aggressor = None # Last person to have set a new high
+        self.last_aggressor = None  # Last person to have set a new high
 
     # -------------------- Player Management --------------------
     def add_player(self, name, uuid, seat_position, seat_position_flag, is_ready):
@@ -60,6 +62,9 @@ class PokerGame:
 
     # -------------------- Round Management --------------------
     def start_round(self):
+        for player in self.players.values():
+            player.reset_for_round()
+
         self.deck = deck.Deck()
         self.deck.shuffle()
         self.pot.clear_pot()
@@ -79,7 +84,6 @@ class PokerGame:
 
         # Deal 2 cards to each player
         for player in self.players.values():
-            player.reset_for_round()
             player.receive_card(self.deck.deal(2))
             # Simple ante
             ante = 10
@@ -89,6 +93,7 @@ class PokerGame:
             player.acted_this_round = False
 
     def reset_round(self):
+
         self.round_active = False
         self.deck = deck.Deck()
         self.deck.shuffle()
@@ -97,13 +102,66 @@ class PokerGame:
         self.turn_order = list(self.players.keys())
         self.current_turn_index = 0
         self.last_aggressor = None
-        for player in self.players.values():
-            player.reset_for_round()
-            player.acted_this_round = False
+        self.street = "preflop"
+
+    # Disconnect helper
+    def on_disconnect(self, uuid):
+        out = {"removed": False, "ended_round": False}
+        if uuid not in self.players:
+            return out
+
+        # Remove per-street contribution
+        self.street_contributions.pop(uuid, None)
+
+        # Remove from turn order and fix index
+        if uuid in self.turn_order:
+            idx = self.turn_order.index(uuid)
+            self.turn_order.pop(idx)
+
+            # If players are in the lobby
+            if self.turn_order:
+                # If current uuid index position is less than the current turn
+                # Decrement the current turn to the current uuid
+                if idx < self.current_turn_index:
+                    self.current_turn_index -= 1
+
+                # If current turn index is outside the length of players in turn order
+                # Reset the current turn index to the start
+                if self.current_turn_index >= len(self.turn_order):
+                    self.current_turn_index = 0
+            else:
+                self.current_turn_index = 0
+
+        # Need to remove player from game as they've
+        # Only been removed from the turn order so far
+        self.remove_player(uuid)
+        out["removed"] = True
+
+        # If round isn't active kill the game
+        if not self.round_active:
+            return out
+
+        # If less than two active players reset the round
+        active = self.active_players()
+        if len(active) < 2:
+            # Not enough players to continue the hand
+            self.reset_round()
+            out["ended_round"] = True
+
+        return out
+
 
     # -------------------- Turn Management --------------------
     def current_player(self):
-        return self.players[self.turn_order[self.current_turn_index]]
+        return self.players.get(self.turn_order[self.current_turn_index])
+
+    # def has_player_acted_this_round(self, uuid):
+    #     curr = self.current_player()
+    #     if curr.acted_this_round:
+    #         return True
+    #     else:
+    #         return False
+
 
     def advance_turn(self):
         for _ in range(len(self.turn_order)):
@@ -113,7 +171,61 @@ class PokerGame:
                 return p
         return None
 
+    def advance_turn_by_1(self):
+        self.current_turn_index += 1
+
+    # More disconnect helpers
+    def active_players(self):
+        # not folded and has chips
+        return [p for p in self.players.values() if not p.folded and p.chips > 0]
+
+
     # ------------------Game Logic Helpers--------------
+
+    def assign_hand_ranking(self):
+        for player in self.players.values():
+            player.set_hand_rank(rankings.rank_hand(player.hand + self.community_cards))
+
+    def rank_all_player_hands(self):  # TODO: make less stupid / complex
+        winning_players = []
+        current_best_rank = 0
+        high_card_of_current_best = 0
+        best_first_pair = 0
+        best_second_pair = 0
+
+        list_of_eligible_players = [p for p in self.players.values() if not p.folded] # only poll from players that haven't folded
+        for player in list_of_eligible_players:
+            player_hand_rank = player.hand_rank[0]
+            player_high_cards = player.hand_rank[1]
+            if player_hand_rank > current_best_rank:  # this player is the new current winner
+                current_best_rank = player_hand_rank
+
+                if player_hand_rank == 3 or player_hand_rank == 7:
+                    best_first_pair, best_second_pair = player_high_cards
+                else:
+                    high_card_of_current_best = player_high_cards
+                winning_players = [player]
+                if player_hand_rank == 3 or player_hand_rank == 7:
+                    best_first_pair, best_second_pair = player_high_cards
+
+            elif player_hand_rank == current_best_rank:  # there is a ranking tie, now check high card(s)
+                if player_hand_rank == 3 or player_hand_rank == 7:
+                    if player_high_cards[0] > best_first_pair:  # a better dominant pair
+                        winning_players = [player]
+                        best_first_pair, best_second_pair = player_high_cards
+                    elif player_high_cards[0] == best_first_pair:  # equal dominant pair, check secondary pair
+                        if player_high_cards[1] > best_second_pair:
+                            winning_players = [player]
+                            best_second_pair = player_high_cards[1]
+                        elif player_high_cards[1] == best_second_pair:
+                            winning_players.append(player)
+                elif player_high_cards > high_card_of_current_best:
+                    winning_players = [player]
+                elif player_high_cards == high_card_of_current_best:
+                    winning_players.append(player)
+
+        return current_best_rank, winning_players
+
     def reset_actions_after_aggression(self, aggressor_uuid):
         for player in self.players.values():
             player.acted_this_round = False
@@ -133,6 +245,11 @@ class PokerGame:
 
     # -------------------- Betting --------------------
     def apply_action(self, uuid, action, amount=0):
+        # determine maximum bet
+        for player in self.players.values():
+            if player.chips < self.maximum_bet:
+                self.maximum_bet = player.chips
+
         p = self.players.get(uuid)
         if not p or p.folded or p.chips == 0:
             return False, "Invalid player state."
@@ -172,6 +289,8 @@ class PokerGame:
                 return False, f"Minimum bet is {self.minimum_raise}."
             if amount > p.chips:
                 return False, "Not enough chips."
+            if amount > self.maximum_bet:
+                return False, "Bet is more than the least common denominator."
             p.chips -= amount
             self.pot.add_to_pot(amount)
             self.street_contributions[uuid] = my_contribution + amount
@@ -222,7 +341,7 @@ class PokerGame:
 
         # If 0 or 1 active player, round is over
         if len(active) <= 1:
-            self.street = "showdown"
+            self.street = "river"
             return True
 
         # Everyone has acted
@@ -262,8 +381,6 @@ class PokerGame:
             self.burn_card()
             self.community_cards.extend(self.deck.deal(1))
             self.street = "river"
-        elif self.street == "river":
-            self.street = "showdown"
 
         # Set current player to first active
         self.current_turn_index = self._first_active_index()
@@ -282,8 +399,10 @@ class PokerGame:
         if p.chips == 0:
             return ["fold"]
         # If no one has bet price_to_call is zero
-        if price_to_call == 0:
+        elif price_to_call == 0:
             return ["check", "bet", "allin", "fold"]
+        # elif not self.players.get(self.turn_order[self.current_turn_index]):
+        #     return []
         else:
             actions = ["call", "allin", "fold"]
             # Hide raise if player can't do more than call
@@ -300,6 +419,7 @@ class PokerGame:
                     "name": p.name,
                     "chips": p.chips,
                     "folded": p.folded,
+                    "hand_rank": p.hand_rank[0],
                     "contribution": self.street_contributions.get(p.uuid, 0)
                 } for p in self.players.values()
             ],

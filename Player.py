@@ -11,6 +11,7 @@ class Player:
         self.chips = 1000
         self.seat_position = seat_position
         self.hand = []  # List of Cards of length 2
+        self.hand_rank = (1,0)
         self.seat_position_flag = seat_position_flag  # one of Dealer, Big Blind, Little Blind
         self.folded = False
         self.current_bet = 0
@@ -18,8 +19,8 @@ class Player:
 
         self.acted_this_round = False
 
-# returns a dictionary of the player data to pass around as json (cant pass regular python objects)
-# we should keep our eye on this to make sure that the dictionary is
+    # returns a dictionary of the player data to pass around as json (cant pass regular python objects)
+    # we should keep our eye on this to make sure that the dictionary is
     # updated correctly (when we eventually access it in a more involved way)
     def to_dict(self):
         return {
@@ -28,6 +29,7 @@ class Player:
             'money_count': self.chips,
             'seat_position': self.seat_position,
             'hand': self.hand,
+            'hand_rank': self.hand_rank,
             'seat_position_flag': self.seat_position_flag,
             'folded': self.folded,
             'current_bet': self.current_bet
@@ -40,6 +42,9 @@ class Player:
         self.chips -= current_bet
         self.current_bet += current_bet
 
+    def set_hand_rank(self, hand_rank):
+        self.hand_rank = hand_rank
+
     def receive_money(self, current_bet):
         self.chips += current_bet
 
@@ -47,6 +52,7 @@ class Player:
         self.hand = []
         self.current_bet = 0
         self.folded = False
+        self.acted_this_round = False
 
     @property
     def ready(self):

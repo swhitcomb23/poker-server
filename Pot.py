@@ -9,7 +9,7 @@ class Pot:
         self.amount = 0
 
     def payout_single(self, player):
-        player.money_count += self.amount
+        player.receive_money(self.amount)
         self.clear_pot()
 
     def payout_split_pot(self, players):

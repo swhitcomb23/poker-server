@@ -1,5 +1,3 @@
-import Card
-
 card_number_to_card_rank = {1: "A", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "J",
                             12: "Q", 13: "K"}
 
@@ -13,7 +11,7 @@ hand_ranking_weight_to_string = {1: "High Card", 2: "One Pair", 3: "Two Pair", 4
 # Returns the hand ranking along with the high card of that ranking
 def rank_hand(full_hand):
     if has_royal_flush(full_hand):
-        return 10, None  # only one way for a straight flush, high card doesn't matter
+        return 10, 0  # only one way for a straight flush, high card doesn't matter
     straight_flush_bool, straight_flush_high_card = has_straight_flush(full_hand)
     if straight_flush_bool:
         return 9, straight_flush_high_card
@@ -38,7 +36,7 @@ def rank_hand(full_hand):
     one_pair_bool, one_pair_card = has_one_pair(full_hand)
     if one_pair_bool:
         return 2, one_pair_card
-    return has_high_card(full_hand)
+    return 1, high_card(full_hand)
 
 
 # Returns whether there is a royal flush (there is no way to rank a royal flush further, so only return bool)
@@ -118,7 +116,7 @@ def has_flush(full_hand):
     # group cards by suit
     for card in full_hand:
         suit_groups[card.suit].append(card)
-    for suit, cards in suit_groups:
+    for suit, cards in suit_groups.items():
         if len(cards) > 4:  # there's a flush
             return True, max([card.number for card in cards])
     return False, 0
@@ -202,7 +200,7 @@ def has_two_pair(full_hand):
                 pairs.append(card_number)
     if len(pairs) > 2:
         pairs.remove(min(pairs))
-    return len(pairs) == 2, pairs
+    return len(pairs) == 2, tuple(sorted(pairs, reverse=True))   # the higher card at index 0
 
 
 # returns whether there's a one pair and what the card number is
@@ -219,15 +217,8 @@ def has_one_pair(full_hand):
 
 # returns true (because there's always a high card if nothing else) and the card number
 # 28974 -> True, 9
-def has_high_card(full_hand):
+def high_card(full_hand):
     full_hand_numbers = [card.number for card in full_hand]
     if 1 in full_hand_numbers:  # Ace
-        return True, 14
-    return True, max(full_hand_numbers)
-
-
-# TEST
-ranking = rank_hand(
-    [Card.Card("Hearts", "9"), Card.Card("Hearts", "K"), Card.Card("Hearts", "J"), Card.Card("Hearts", "10"),
-     Card.Card("Hearts", "Q"), Card.Card("Hearts", "A"), Card.Card("Clubs", "5")])
-print(hand_ranking_weight_to_string[ranking[0]], ranking[1])
+        return 14
+    return max(full_hand_numbers)
