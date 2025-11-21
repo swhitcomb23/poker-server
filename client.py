@@ -122,7 +122,7 @@ class PokerGameClient(arcade.Window):
             reconnection_delay_max=5.0,
             request_timeout=10.0,
         )
-        self.server_url = "http://127.0.0.1:5000"  # Change to servers IP when flask starts running
+        self.server_url = "https://poker-server-yv2b.onrender.com"  # Change to servers IP when flask starts running
 
         # GUI
         self.status_text = "Not Connected"
